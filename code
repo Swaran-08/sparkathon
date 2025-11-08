@@ -1,0 +1,107 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x20, 16, 2);  // I2C LCD (address 0x20)
+
+// Sensor pins
+int tempPin = A0;   // TMP36
+int turbPin = A1;   // Potentiometer for turbidity
+int phPin = A2;     // Potentiometer for pH
+int fishSwitch = 7; // Slide switch for fish detection
+
+// Output pins
+int ledCold = 3;
+int ledNormal = 5;
+int ledHot = 6;
+int buzzer = 8;     // Buzzer pin
+
+float tempC;
+float turbidityPercent;
+float phValue;
+int fishStatus;
+
+void setup() {
+  Serial.begin(9600);
+  lcd.init();
+  lcd.backlight();
+
+  pinMode(ledCold, OUTPUT);
+  pinMode(ledNormal, OUTPUT);
+  pinMode(ledHot, OUTPUT);
+  pinMode(buzzer, OUTPUT);
+  pinMode(fishSwitch, INPUT_PULLUP); // slide switch
+
+  lcd.setCursor(0, 0);
+  lcd.print("Water Quality");
+  delay(1500);
+  lcd.clear();
+}
+
+void loop() {
+  // --- Temperature (TMP36) ---
+  int sensorValue = analogRead(tempPin);
+  tempC = ((sensorValue * 5.0 / 1023.0) - 0.5) * 100;
+
+  // --- Turbidity ---
+  turbidityPercent = map(analogRead(turbPin), 0, 1023, 100, 0); // 100=clear, 0=muddy
+
+  // --- pH ---
+  phValue = map(analogRead(phPin), 0, 1023, 0, 14);
+
+  // --- Fish detection (slide switch) ---
+  fishStatus = digitalRead(fishSwitch);
+
+  // --- LED control (Temperature) ---
+  digitalWrite(ledCold, LOW);
+  digitalWrite(ledNormal, LOW);
+  digitalWrite(ledHot, LOW);
+
+  if (tempC <= 10)
+    digitalWrite(ledCold, HIGH);
+  else if (tempC <= 60)
+    digitalWrite(ledNormal, HIGH);
+  else
+    digitalWrite(ledHot, HIGH);
+
+  // --- Buzzer for turbidity ---
+  if (turbidityPercent > 70) {
+    digitalWrite(buzzer, HIGH);  // buzzer ON
+  } else {
+    digitalWrite(buzzer, LOW);   // buzzer OFF
+  }
+
+  // --- Fish detection message ---
+  if (fishStatus == LOW) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Fish Detected!");
+    lcd.setCursor(0, 1);
+    lcd.print("Be Careful :)");
+    delay(2000); // Show message for 2 seconds
+  }
+
+  // --- LCD Display (always refresh after fish message) ---
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("T:");
+  lcd.print(tempC, 1);
+  lcd.print("C PH:");
+  lcd.print(phValue, 1);
+
+  lcd.setCursor(0, 1);
+  lcd.print("Turb:");
+  lcd.print(turbidityPercent, 0);
+  lcd.print("%");
+
+  // --- Serial Debugging (optional) ---
+  Serial.print("Temp: ");
+  Serial.print(tempC);
+  Serial.print(" C | Turbidity: ");
+  Serial.print(turbidityPercent);
+  Serial.print("% | pH: ");
+  Serial.print(phValue);
+  Serial.print(" | Fish: ");
+  Serial.println(fishStatus == LOW ? "Detected" : "None");
+
+  delay(1500);  // Delay before next sensor update (balanced timing)
+}
